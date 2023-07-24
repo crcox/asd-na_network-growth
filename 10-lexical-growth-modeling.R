@@ -7,11 +7,11 @@ append_formula <- function(f, x) {
 }
 
 combn_and_paste <- function(x, m) {
-  return(apply(combn(x, m), MARGIN = 2, paste, collapse = "+"))
+    return(apply(combn(x, m), MARGIN = 2, paste, collapse = "+"))
 }
 
 model_comp_helper <- function(full, restricted, M) {
-  return(netgrowr::model_comparison(M[[full]], M[[restricted]]))
+    return(netgrowr::model_comparison(M[[full]], M[[restricted]]))
 }
 
 
@@ -33,71 +33,64 @@ fE <- formula(aoa ~ 1)
 # +++ phonotactic probability (biphone)
 # +++ phonological neighborhood density (KU child corpus)
 f0 <- update(fE, ~ . + I(Z(log(nphon + 1))) + I(Z(log(CHILDES_Freq + 1))) + Z(BiphonProb.avg) + Z(PNDC.avg))
-M0 <- netgrowr::mle_network_growth(f0, data = na.omit(modelvars), split_by = "month", label_with = "num_item_id")
+M0 <- netgrowr::mle_network_growth(
+    f0,
+    data = na.omit(modelvars),
+    split_by = "month",
+    label_with = "num_item_id"
+)
 
 # Networks over control
 network_gv1 <- c(
-    "preferential_attachment_adult",
-    "preferential_attachment_child",
-    "preferential_attachment_childes",
-    "preferential_acquisition_adult",
-    "preferential_acquisition_child",
-    "preferential_acquisition_childes",
-    "lure_of_the_associates_adult",
-    "lure_of_the_associates_child",
-    "lure_of_the_associates_childes"
+    "preferential_attachment_autistic",
+    "preferential_attachment_nonautistic",
+    "preferential_acquisition_autistic",
+    "preferential_acquisition_nonautistic",
+    "lure_of_the_associates_autistic",
+    "lure_of_the_associates_nonautistic"
 )
 f1 <- lapply(network_gv1, FUN = append_formula, f = f0)
 
 # Models that combine networks growing by pref acq.
-network_gv2 <- combn_and_paste(c(
-      "preferential_acquisition_adult",
-      "preferential_acquisition_child",
-      "preferential_acquisition_childes"
+network_gv2 <- combn_and_paste(
+    c(
+        "preferential_acquisition_autistic",
+        "preferential_acquisition_nonautistic"
     ),
     m = 2
 )
 f2n <- lapply(network_gv2, FUN = append_formula, f = f0)
 
-network_gv3 <- combn_and_paste(c(
-      "preferential_acquisition_adult",
-      "preferential_acquisition_child",
-      "preferential_acquisition_childes"
+network_gv3 <- combn_and_paste(
+    c(
+        "preferential_acquisition_autistic",
+        "preferential_acquisition_nonautistic"
     ),
     m = 3
 )
 f3n <- lapply(network_gv3, FUN = append_formula, f = f0)
 
 # Models that combine growth values derived from different growth models for the same network
-adult_gv2 <- combn_and_paste(c(
-      "preferential_attachment_adult",
-      "preferential_acquisition_adult",
-      "lure_of_the_associates_adult"
+adult_gv2 <- combn_and_paste(
+    c(
+        "preferential_attachment_autistic",
+        "preferential_acquisition_autistic",
+        "lure_of_the_associates_autistic"
     ),
     m = 2
 )
-child_gv2 <- combn_and_paste(c(
-      "preferential_attachment_child",
-      "preferential_acquisition_child",
-      "lure_of_the_associates_child"
-    ),
-    m = 2
-)
-childes_gv2 <- combn_and_paste(c(
-      "preferential_attachment_childes",
-      "preferential_acquisition_childes",
-      "lure_of_the_associates_childes"
+child_gv2 <- combn_and_paste(
+    c(
+        "preferential_attachment_nonautistic",
+        "preferential_acquisition_nonautistic",
+        "lure_of_the_associates_nonautistic"
     ),
     m = 2
 )
 f2g <- lapply(
-  c(
-    adult_gv2,
-    child_gv2,
-    childes_gv2
-  ),
-  FUN = append_formula,
-  f = f0
+    c(autistic_gv2, nonautistic_gv2),
+    FUN = append_formula,
+    f = f0
 )
 
 # Define cluster for parallel computing and optimize models ----
@@ -122,71 +115,84 @@ ncores <- parallel::detectCores() - 1
 cl <- parallel::makeCluster(ncores)
 parallel::clusterSetRNGStream(cl)
 invisible(parallel::clusterEvalQ(cl, {
-  library('dplyr')
-  library('netgrowr')
-  source('./R/utils.R')
+    library('dplyr')
+    library('netgrowr')
+    source('./R/utils.R')
 }))
 
 
 for (repetition in 1:500) {
     M <- parallel::parLapply(
-      cl = cl,
-      X = c(f1, f2n, f3n, f2g),
-      fun = netgrowr::mle_network_growth,
-      data = modelvars,
-      split_by = "month",
-      label_with = "num_item_id"
+        cl = cl,
+        X = c(f1, f2n, f3n, f2g),
+        fun = netgrowr::mle_network_growth,
+        data = modelvars,
+        split_by = "month",
+        label_with = "num_item_id"
     )
-    names(M) <- c(network_gv1, network_gv2, network_gv3, adult_gv2, child_gv2, childes_gv2)
-    M1 <- M[network_gv1]
-    M2n <- M[network_gv2]
-    M3n <- M[network_gv3]
-    M2g <- M[c(adult_gv2, child_gv2, childes_gv2)]
+    names(M) <- c(
+        network_gv1,
+        network_gv2,
+        network_gv3,
+        autistic_gv2,
+        nonautistic_gv2
+    )
+    m1 <- m[network_gv1]
+    m2n <- m[network_gv2]
+    m3n <- m[network_gv3]
+    m2g <- m[c(autistic_gv2, nonautistic_gv2)]
 
-    # Comparison 1: Each growth model (and combinations) over baseline ----
-    X <- list()
-    X[[1]] <- t(vapply(c(M1, M2n, M3n), netgrowr::model_comparison, numeric(7), restricted = M0))
-
-    # Comparison 2: Preferential Acq. vs. LOA ----
-    comparisons <- as.data.frame(rbind(
-      c(full = 'preferential_acquisition_adult+lure_of_the_associates_adult', restricted = 'preferential_acquisition_adult'),
-      c(full = 'preferential_acquisition_adult+lure_of_the_associates_adult', restricted = 'lure_of_the_associates_adult'),
-      c(full = 'preferential_acquisition_child+lure_of_the_associates_child', restricted = 'preferential_acquisition_child'),
-      c(full = 'preferential_acquisition_child+lure_of_the_associates_child', restricted = 'lure_of_the_associates_child'),
-      c(full = 'preferential_acquisition_childes+lure_of_the_associates_childes', restricted = 'preferential_acquisition_childes'),
-      c(full = 'preferential_acquisition_childes+lure_of_the_associates_childes', restricted = 'lure_of_the_associates_childes')
+    # comparison 1: each growth model (and combinations) over baseline ----
+    x <- list()
+    x[[1]] <- t(vapply(
+            c(m1, m2n, m3n),
+            netgrowr::model_comparison,
+            numeric(7),
+            restricted = m0
     ))
-    X[[2]] <- t(mapply(model_comp_helper, comparisons[["full"]], comparisons[["restricted"]], MoreArgs = list(M = c(M1, M2g))))
-    rownames(X[[2]]) <- apply(comparisons, 1, paste, collapse = "|")
 
-    # Comparison 3: Adult vs. Child vs. CHILDES (Preferential Acq. only) ----
+    # comparison 2: preferential acq. vs. loa ----
     comparisons <- as.data.frame(rbind(
-      c(full = 'preferential_acquisition_adult+preferential_acquisition_child', restricted = 'preferential_acquisition_adult'),
-      c(full = 'preferential_acquisition_adult+preferential_acquisition_child', restricted = 'preferential_acquisition_child'),
-      c(full = 'preferential_acquisition_child+preferential_acquisition_childes', restricted = 'preferential_acquisition_child'),
-      c(full = 'preferential_acquisition_child+preferential_acquisition_childes', restricted = 'preferential_acquisition_childes'),
-      c(full = 'preferential_acquisition_adult+preferential_acquisition_childes', restricted = 'preferential_acquisition_adult'),
-      c(full = 'preferential_acquisition_adult+preferential_acquisition_childes', restricted = 'preferential_acquisition_childes')
+        c(full = 'preferential_acquisition_autistic+lure_of_the_associates_autistic', restricted = 'preferential_acquisition_autistic'),
+        c(full = 'preferential_acquisition_autistic+lure_of_the_associates_autistic', restricted = 'lure_of_the_associates_autistic'),
+        c(full = 'preferential_acquisition_nonautistic+lure_of_the_associates_nonautistic', restricted = 'preferential_acquisition_nonautistic'),
+        c(full = 'preferential_acquisition_nonautistic+lure_of_the_associates_nonautistic', restricted = 'lure_of_the_associates_nonautistic')
     ))
-    X[[3]] <- t(mapply(model_comp_helper, comparisons[["full"]], comparisons[["restricted"]], MoreArgs = list(M = c(M1, M2n))))
-    rownames(X[[3]]) <- gsub("preferential_acquisition_", "", apply(comparisons, 1, paste, collapse = "|"))
+    x[[2]] <- t(mapply(
+        model_comp_helper,
+        comparisons[["full"]],
+        comparisons[["restricted"]],
+        moreargs = list(m = c(m1, m2g))
+    ))
+    rownames(x[[2]]) <- apply(comparisons, 1, paste, collapse = "|")
 
-    # Comparison 4: Adult & Child vs. CHILDES (Preferential Acq. only) ----
+    # comparison 3: autistic vs. nonautistic (preferential acq. only) ----
     comparisons <- as.data.frame(rbind(
-      c(full = 'preferential_acquisition_adult+preferential_acquisition_child+preferential_acquisition_childes', restricted = 'preferential_acquisition_adult+preferential_acquisition_child'),
-      c(full = 'preferential_acquisition_adult+preferential_acquisition_child+preferential_acquisition_childes', restricted = 'preferential_acquisition_adult+preferential_acquisition_childes'),
-      c(full = 'preferential_acquisition_adult+preferential_acquisition_child+preferential_acquisition_childes', restricted = 'preferential_acquisition_child+preferential_acquisition_childes')
+        c(full = 'preferential_acquisition_autistic+preferential_acquisition_nonautistic', restricted = 'preferential_acquisition_autistic'),
+        c(full = 'preferential_acquisition_autistic+preferential_acquisition_nonautistic', restricted = 'preferential_acquisition_nonautistic')
     ))
-    X[[4]] <- t(mapply(model_comp_helper, comparisons[["full"]], comparisons[["restricted"]], MoreArgs = list(M = c(M2n, M3n))))
-    rownames(X[[4]]) <- gsub("preferential_acquisition_", "", apply(comparisons, 1, paste, collapse = "|"))
+    x[[3]] <- t(mapply(
+        model_comp_helper,
+        comparisons[["full"]],
+        comparisons[["restricted"]],
+        moreargs = list(m = c(m1, m2n))
+    ))
+    rownames(x[[3]]) <- gsub(
+        "preferential_acquisition_",
+        "",
+        apply(comparisons, 1, paste, collapse = "|")
+    )
 
     model_comparisons <- do.call('rbind', X)
     model_comparisons <- cbind(
-      model_comparisons,
-      p_fdr  = p.adjust(as.vector(model_comparisons[, 'p']), method = 'fdr'),
-      p_bonf = p.adjust(as.vector(model_comparisons[, 'p']), method = 'bonferroni'),
-      p_holm = p.adjust(as.vector(model_comparisons[, 'p']), method = 'holm')
+        model_comparisons,
+        p_fdr  = p.adjust(as.vector(model_comparisons[, 'p']), method = 'fdr'),
+        p_bonf = p.adjust(as.vector(model_comparisons[, 'p']), method = 'bonferroni'),
+        p_holm = p.adjust(as.vector(model_comparisons[, 'p']), method = 'holm')
     )
-    save(model_comparisons, file = sprintf('./network/model-comparisons-%03d.Rdata', repetition - 1))
+    save(
+        model_comparisons,
+        file = sprintf('./network/model-comparisons-%03d.Rdata', repetition - 1)
+    )
 }
 parallel::stopCluster(cl)
