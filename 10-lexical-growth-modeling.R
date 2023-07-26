@@ -1,14 +1,9 @@
 library(dplyr)
+library(purrr)
+library(tidyr)
 library(netgrowr)
 source("./R/utils.R")
 
-append_formula <- function(f, x) {
-    update(f, paste("~.", x, sep = "+"))
-}
-
-combn_and_paste <- function(x, m) {
-    return(apply(combn(x, m), MARGIN = 2, paste, collapse = "+"))
-}
 
 model_comp_helper <- function(full, restricted, M) {
     return(netgrowr::model_comparison(M[[full]], M[[restricted]]))
@@ -20,6 +15,17 @@ model_comp_helper <- function(full, restricted, M) {
 # If we model month 30, all unknown words will be learned.
 # To avoid this, month 30 is not modeled.
 modelvars <- readRDS("./network/modelvars.rds")
+modelvars <- modelvars %>%
+    drop_na() %>%
+    mutate(
+        label = paste(
+            if_else(group=="autistic", "a", "n"),
+            month,
+            num_item_id,
+            sep = "_"
+        )
+    )
+
 
 # Define models by constructing formulas ----
 
@@ -33,65 +39,106 @@ fE <- formula(aoa ~ 1)
 # +++ phonotactic probability (biphone)
 # +++ phonological neighborhood density (KU child corpus)
 f0 <- update(fE, ~ . + I(Z(log(nphon + 1))) + I(Z(log(CHILDES_Freq + 1))) + Z(BiphonProb.avg) + Z(PNDC.avg))
-M0 <- netgrowr::mle_network_growth(
-    f0,
-    data = na.omit(modelvars),
-    split_by = "month",
-    label_with = "num_item_id"
-)
+M0 <- map(c(autistic = "autistic", nonautistic = "nonautistic"), function(f, g, .data) {
+    netgrowr::mle_network_growth(
+        f,
+        data = .data %>% drop_na() %>% filter(group == g, model == "preferential_acquisition"),
+        split_by = "month",
+        label_with = "label"
+    )
+}, f = f0, .data = modelvars)
+names(M0) <- c("autistic", "nonautistic")
+
+x <- modelvars %>%
+    select(num_item_id, nphon, CHILDES_Freq, BiphonProb.avg, PNDC.avg) %>%
+    distinct()
+
+q <- model.matrix(update(f0, ~ . -1), mutate(x, aoa = 1))
+r <- cor(q)
+rr <- cor(t(q))
+s <- svd(rr)
+v <- varimax(s$u[,1:2])
+p <- psych::pca(rr, nfactors = 2)
+x <- bind_cols(x, tibble(RC1 = v$loadings[,1], RC2 = v$loadings[,2]))
+
+modelvars <- left_join(modelvars, select(x, num_item_id, starts_with("RC")))
+
+
+f0RC <- update(fE, ~ . + RC1 + RC2)
+M0RC <- map(c(autistic = "autistic", nonautistic = "nonautistic"), function(f, g, .data) {
+    netgrowr::mle_network_growth(
+        f,
+        data = .data %>% drop_na() %>% filter(group == g, model == "preferential_acquisition"),
+        split_by = "month",
+        label_with = "label"
+    )
+}, f = f0RC, .data = modelvars)
+names(M0RC) <- c("autistic", "nonautistic")
 
 # Networks over control
-network_gv1 <- c(
-    "preferential_attachment_autistic",
-    "preferential_attachment_nonautistic",
-    "preferential_acquisition_autistic",
-    "preferential_acquisition_nonautistic",
-    "lure_of_the_associates_autistic",
-    "lure_of_the_associates_nonautistic"
+f1 <- update(f0, ~ . + value)
+x <- expand_grid(
+    model = c("preferential_acquisition", "lure_of_the_associates"),
+    group = c("autistic", "nonautistic")
 )
-f1 <- lapply(network_gv1, FUN = append_formula, f = f0)
+M1 <- map2(x$model, x$group, function(m, g, .formula, .data) {
+    netgrowr::mle_network_growth(
+        .formula,
+        data = .data %>% drop_na() %>% filter(group == g, model == m),
+        split_by = "month",
+        label_with = "label"
+    )
+}, .formula = f1, .data = modelvars)
+names(M1) <- paste(x$model, x$group, sep = '_')
 
-# Models that combine networks growing by pref acq.
-network_gv2 <- combn_and_paste(
-    c(
-        "preferential_acquisition_autistic",
-        "preferential_acquisition_nonautistic"
-    ),
-    m = 2
-)
-f2n <- lapply(network_gv2, FUN = append_formula, f = f0)
+list(
+    model_comparison(M1$preferential_acquisition_autistic, M0$autistic),
+    model_comparison(M1$preferential_acquisition_nonautistic, M0$nonautistic),
+    model_comparison(M1$lure_of_the_associates_autistic, M0$autistic),
+    model_comparison(M1$lure_of_the_associates_nonautistic, M0$nonautistic)
+) %>% map(~{as_tibble(as.list(.))}) %>% list_rbind() %>% bind_cols(x)
 
-network_gv3 <- combn_and_paste(
-    c(
-        "preferential_acquisition_autistic",
-        "preferential_acquisition_nonautistic"
-    ),
-    m = 3
-)
-f3n <- lapply(network_gv3, FUN = append_formula, f = f0)
 
-# Models that combine growth values derived from different growth models for the same network
-adult_gv2 <- combn_and_paste(
+f1RC <- update(f0RC, ~ . + value)
+x <- expand_grid(
+    model = c("preferential_acquisition", "lure_of_the_associates"),
+    group = c("autistic", "nonautistic")
+)
+M1RC <- map2(x$model, x$group, function(m, g, .formula, .data) {
+    netgrowr::mle_network_growth(
+        .formula,
+        data = .data %>% drop_na() %>% filter(group == g, model == m),
+        split_by = "month",
+        label_with = "label"
+    )
+}, .formula = f1RC, .data = modelvars)
+names(M1RC) <- paste(x$model, x$group, sep = '_')
+
+list(
+    model_comparison(M1RC$preferential_acquisition_autistic, M0RC$autistic),
+    model_comparison(M1RC$preferential_acquisition_nonautistic, M0RC$nonautistic),
+    model_comparison(M1RC$lure_of_the_associates_autistic, M0RC$autistic),
+    model_comparison(M1RC$lure_of_the_associates_nonautistic, M0RC$nonautistic)
+) %>% map(~{as_tibble(as.list(.))}) %>% list_rbind() %>% bind_cols(x)
+
+
+
+fInt <- update(f1, ~ (.) * group)
+MInt <- map(
     c(
-        "preferential_attachment_autistic",
-        "preferential_acquisition_autistic",
-        "lure_of_the_associates_autistic"
+        preferential_acquisition = "preferential_acquisition",
+        lure_of_the_associates = "lure_of_the_associates"
     ),
-    m = 2
+    function(m, .formula, .data) {
+        netgrowr::mle_network_growth(
+            .formula,
+            data = .data %>% drop_na() %>% filter(model == m),
+            split_by = "month",
+            label_with = "label"
+        )
+    }, .formula = fInt, .data = modelvars
 )
-child_gv2 <- combn_and_paste(
-    c(
-        "preferential_attachment_nonautistic",
-        "preferential_acquisition_nonautistic",
-        "lure_of_the_associates_nonautistic"
-    ),
-    m = 2
-)
-f2g <- lapply(
-    c(autistic_gv2, nonautistic_gv2),
-    FUN = append_formula,
-    f = f0
-)
+
 
 # Define cluster for parallel computing and optimize models ----
 

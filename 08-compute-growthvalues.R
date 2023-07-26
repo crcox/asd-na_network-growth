@@ -21,6 +21,8 @@ vertex_ids <- tibble(
 )
 
 vsoa_df <- d %>%
+    select(-word, -fct) %>%
+    left_join(m %>% select(num_item_id, word = cue_CoxHae), by = "num_item_id") %>%
     left_join(vertex_ids, by = "word") %>%
     filter(!is.na(vid)) %>%
     select(vid, num_item_id, word, vsoa_nonautistic = na, vsoa_autistic = asd) %>%
@@ -96,9 +98,21 @@ phono_baseline <- m %>%
     left_join(vertex_ids, by = "word") %>%
     filter(!is.na(vid))
 
+
+# LONG VERSION ----
 growthvalues$autistic$group <- "autistic"
 growthvalues$nonautistic$group <- "nonautistic"
+modelvars <- growthvalues %>%
+    list_rbind() %>%
+    filter(vocab_step != "(660, Inf]") %>%
+    left_join(phono_baseline, by = "word")
 
+saveRDS(modelvars, file = "./network/modelvars.rds")
+
+
+# WIDE VERSION ----
+growthvalues$autistic$group <- "autistic"
+growthvalues$nonautistic$group <- "nonautistic"
 modelvars <- growthvalues %>%
     list_rbind() %>%
     tidyr::pivot_wider(
