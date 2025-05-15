@@ -1,32 +1,48 @@
 library(dplyr)
 library(purrr)
 library(tidyr)
+library(stringr)
 library(ggplot2)
 library(igraph)
 library(netgrowr)
 
 # Load id key ----
-d <- readRDS("./data/item_level_differences_bs_ci_bonf.rds")
-m <- readRDS("./data/cdi-metadata.rds")
-g <- upgrade_graph(readRDS("./network/child_net_graph.rds"))
-assocnet <- as_adjacency_matrix(g, sparse = FALSE)
+d <- readRDS("./data/vsoa-autistic-nonautistic-diff.rds")
+m <- readRDS("./data/cdi-metadata-preproc.rds")
+graphs <- list(
+    child = upgrade_graph(readRDS("./network/child-net-graph-preproc.rds")),
+    childes = upgrade_graph(readRDS("./network/childes-net-graph-preproc.rds"))
+)
+adjmat_lst <- map(graphs, ~ as_adjacency_matrix(.x, sparse = FALSE))
 
-# N.B. all.equal(rowSums(assocnet), degree(g, mode = "out")) == TRUE
-#     Thus, a row in `assocnet` represents the connection "from" the word
+# N.B. all.equal(rowSums(adjmat_lst), degree(g, mode = "out")) == TRUE
+#     Thus, a row in `adjmat_lst` represents the connection "from" the word
 #     associated with the row "to" the word associated with each column.
 
 vertex_ids <- tibble(
-    vid = seq_len(vcount(g)),
-    word = names(V(g))
+    vid = seq_len(vcount(graphs$child)),
+    word_child = names(V(graphs$child)),
+    word_childes = names(V(graphs$childes)),
+    word = if_else(word_child == word_childes, word_child, NA)
 )
 
-vsoa_df <- d %>%
-    select(-word, -fct) %>%
-    left_join(m %>% select(num_item_id, word = cue_CoxHae), by = "num_item_id") %>%
-    left_join(vertex_ids, by = "word") %>%
-    filter(!is.na(vid)) %>%
-    select(vid, num_item_id, word, vsoa_nonautistic = na, vsoa_autistic = asd) %>%
-    arrange(vid) %>%
+# Check for mismatches between word_child and word_childes
+filter(vertex_ids, is.na(word))
+
+# If there are no mismatches, simplify
+vertex_ids <- select(vertex_ids, vid, word)
+str(m)
+
+map_lgl(select(m, lemma, compound), ~ {all(vertex_ids$word %in% .x)})
+
+
+vsoa_df <- d |>
+    select(num_item_id, vsoa_nonautistic = vsoa_NA, vsoa_autistic = vsoa_ASD) |>
+    left_join(m |> select(num_item_id, word = lemma), by = "num_item_id") |>
+    left_join(vertex_ids, by = "word") |>
+    filter(!is.na(vid)) |>
+    select(vid, num_item_id, word, vsoa_nonautistic, vsoa_autistic) |>
+    arrange(vid) |>
     pivot_longer(
         cols = starts_with("vsoa_"),
         names_to = c("group"),
@@ -34,15 +50,15 @@ vsoa_df <- d %>%
         values_to = "vsoa"
     )
 
-vsoa_df <- vsoa_df %>%
+vsoa_df <- vsoa_df |>
     mutate(
         by_20 = cut(vsoa, c(-Inf, seq(20, 660, by = 20), Inf), ordered_result = TRUE),
         by_40 = cut(vsoa, c(-Inf, seq(20, 660, by = 40), Inf), ordered_result = TRUE),
         by_60 = cut(vsoa, c(-Inf, seq(20, 660, by = 60), Inf), ordered_result = TRUE)
     )
 
-vsoa_plot <- vsoa_df %>%
-    mutate(across(starts_with("by_"), as.character)) %>%
+vsoa_plot <- vsoa_df |>
+    mutate(across(starts_with("by_"), as.character)) |>
     pivot_longer(
         cols = starts_with("by_"),
         names_to = "binsize",
@@ -53,40 +69,43 @@ ggplot(vsoa_plot, aes(x = bin, fill = group)) +
     geom_bar(position = position_dodge()) +
     facet_wrap(~binsize, scales = "free_x")
 
-vsoa_keys <- vsoa_df %>%
-    group_by(group) %>%
+vsoa_keys <- vsoa_df |>
+    group_by(group) |>
     group_keys()
 
-vsoa_lst <- vsoa_df %>%
-    group_by(group) %>%
+vsoa_lst <- vsoa_df |>
+    group_by(group) |>
     group_split()
 
 names(vsoa_lst) <- vsoa_keys$group
 
-growthvalues <- map(vsoa_lst, function (vsoa, assocnet) {
-    netgrowr::growth_values(
-        assocnet,
-        aoa_tbl = vsoa %>% select(word, by_20) %>% mutate(by_20 = as.numeric(by_20)),
-        growth_models = c("preferential_attachment", "lure_of_the_associates", "preferential_acquisition")
-    ) %>%
-        left_join(
-            vsoa %>% select(vocab_step = by_20) %>% mutate(month = as.numeric(vocab_step)) %>% distinct(),
-            by = "month"
-        ) %>%
-        left_join(
-            vsoa %>% select(word, vsoa, vsoa_bin = by_20) %>% distinct(),
-            by = "word"
-        ) %>%
-        as_tibble()
-}, assocnet = assocnet)
+growthvalues <- map(vsoa_lst, function (vsoa, adjmat_lst) {
+    map(adjmat_lst, function(adjmat, vsoa) {
+        netgrowr::growth_values(
+            adjmat,
+            aoa_tbl = vsoa |> select(word, by_20) |> mutate(by_20 = as.numeric(by_20)),
+            growth_models = c("preferential_attachment", "lure_of_the_associates", "preferential_acquisition")
+        ) |>
+            left_join(
+                vsoa |> select(vocab_step = by_20) |> mutate(month = as.numeric(vocab_step)) |> distinct(),
+                by = "month"
+            ) |>
+            left_join(
+                vsoa |> select(word, vsoa, vsoa_bin = by_20) |> distinct(),
+                by = "word"
+            ) |>
+            as_tibble()
+    }, vsoa = vsoa) |>
+        list_rbind(names_to = "network")
+}, adjmat_lst = adjmat_lst) |>
+    list_rbind(names_to = "group")
 
 # Save growth values ----
-saveRDS(growthvalues$autistic, file = "./network/growthvalues-autistic.rds")
-saveRDS(growthvalues$nonautistic, file = "./network/growthvalues-nonautistic.rds")
+saveRDS(growthvalues, file = "./network/growthvalues-autistic-nonautistic-20250514.rds")
 
 # Save wide-form data for lexical growth modeling ----
 # Specify and incorporate phonological baseline variables
-phono_baseline <- m %>%
+phono_baseline <- m |>
     select(
         word = cue_CoxHae,
         num_item_id,
@@ -94,43 +113,37 @@ phono_baseline <- m %>%
         CHILDES_Freq,
         BiphonProb.avg,
         PNDC.avg
-    ) %>%
-    left_join(vertex_ids, by = "word") %>%
+    ) |>
+    left_join(vertex_ids, by = "word") |>
     filter(!is.na(vid))
 
 
 # LONG VERSION ----
-growthvalues$autistic$group <- "autistic"
-growthvalues$nonautistic$group <- "nonautistic"
-modelvars <- growthvalues %>%
-    list_rbind() %>%
-    filter(vocab_step != "(660, Inf]") %>%
+modelvars <- growthvalues |>
+    filter(vocab_step != "(660, Inf]") |>
     left_join(phono_baseline, by = "word")
 
-saveRDS(modelvars, file = "./network/modelvars.rds")
+saveRDS(modelvars, file = "./network/modelvars-vsoa-long-20250514.rds")
 
 
 # WIDE VERSION ----
-growthvalues$autistic$group <- "autistic"
-growthvalues$nonautistic$group <- "nonautistic"
-modelvars <- growthvalues %>%
-    list_rbind() %>%
+modelvars <- growthvalues |>
     tidyr::pivot_wider(
-        id_cols = c('word', 'month', 'learned', "vocab_step"),
-        names_from = c(model, group),
-        values_from = 'value'
-    ) %>%
-    left_join(phono_baseline, by = "word") %>%
-    left_join(vsoa_df %>%
-                  filter(group == "autistic") %>%
+        id_cols = c("word", "month", "learned", "vocab_step"),
+        names_from = c(network, group, model),
+        values_from = "value"
+    ) |>
+    left_join(phono_baseline, by = "word") |>
+    left_join(vsoa_df |>
+                  filter(group == "autistic") |>
                   select(word, vsoa_autistic = vsoa, vsoa_bin_autistic = by_20),
               by = "word"
-    ) %>%
-    left_join(vsoa_df %>%
-                  filter(group == "nonautistic") %>%
+    ) |>
+    left_join(vsoa_df |>
+                  filter(group == "nonautistic") |>
                   select(word, vsoa_nonautistic = vsoa, vsoa_bin_nonautistic = by_20),
               by = "word"
     )
 
 
-saveRDS(modelvars, file = "./network/modelvars.rds")
+saveRDS(modelvars, file = "./network/modelvars-vsoa-20250514.rds")

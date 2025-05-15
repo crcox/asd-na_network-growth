@@ -5,6 +5,11 @@ library(netgrowr)
 source("./R/utils.R")
 
 
+# Note: 15 May 2025
+# Including a group interaction might help determine if growth models (and
+# confounding variables) are weighted significantlt differently between groups.
+
+
 model_comp_helper <- function(full, restricted, M) {
     return(netgrowr::model_comparison(M[[full]], M[[restricted]]))
 }
@@ -23,7 +28,8 @@ modelvars <- modelvars %>%
             month,
             num_item_id,
             sep = "_"
-        )
+        ),
+        group = factor(group, levels = c("autistic", "nonautistic"))
     )
 
 
@@ -32,6 +38,21 @@ modelvars <- modelvars %>%
 # Empty (random selection) model
 # +++ All words assigned equal probability
 fE <- formula(aoa ~ 1)
+ME <- map(c(autistic = "autistic", nonautistic = "nonautistic"), function(f, g, .data) {
+    netgrowr::mle_network_growth(
+        f,
+        data = .data %>% drop_na() %>% filter(group == g, model == "preferential_acquisition"),
+        split_by = "month",
+        label_with = "label"
+    )
+}, f = fE, .data = modelvars)
+names(ME) <- c("autistic", "nonautistic")
+map2(M0, ME, ~{
+    model_comparison(.x, .y)
+}) %>%
+    map(~{as_tibble(as.list(.))}) %>%
+    list_rbind() %>%
+    bind_cols(tibble(group = c("autistic", "nonautistic")))
 
 # Psycholinguistic baseline model
 # +++ number of phonemes
@@ -58,7 +79,7 @@ r <- cor(q)
 rr <- cor(t(q))
 s <- svd(rr)
 v <- varimax(s$u[,1:2])
-p <- psych::pca(rr, nfactors = 2)
+#p <- psych::pca(rr, nfactors = 2)
 x <- bind_cols(x, tibble(RC1 = v$loadings[,1], RC2 = v$loadings[,2]))
 
 modelvars <- left_join(modelvars, select(x, num_item_id, starts_with("RC")))
@@ -74,6 +95,13 @@ M0RC <- map(c(autistic = "autistic", nonautistic = "nonautistic"), function(f, g
     )
 }, f = f0RC, .data = modelvars)
 names(M0RC) <- c("autistic", "nonautistic")
+map2(M0RC, ME, ~{
+    model_comparison(.x, .y)
+}) %>%
+    map(~{as_tibble(as.list(.))}) %>%
+    list_rbind() %>%
+    bind_cols(tibble(group = c("autistic", "nonautistic")))
+
 
 # Networks over control
 f1 <- update(f0, ~ . + value)
@@ -140,6 +168,74 @@ MInt <- map(
 )
 
 
+fGroupRC <- update(f1RC, ~ . + group)
+MGroupRC <- map(
+    c(
+        preferential_acquisition = "preferential_acquisition",
+        lure_of_the_associates = "lure_of_the_associates"
+    ),
+    function(m, .formula, .data) {
+        netgrowr::mle_network_growth(
+            .formula,
+            data = .data %>% drop_na() %>% filter(model == m),
+            split_by = "month",
+            label_with = "label"
+        )
+    }, .formula = fGroupRC, .data = modelvars
+)
+tmp <- solve(MGroupRC$preferential_acquisition$hessian)
+
+fIntRC <- update(f1RC, ~ (.) * group)
+MIntRC <- map(
+    c(
+        preferential_acquisition = "preferential_acquisition",
+        lure_of_the_associates = "lure_of_the_associates"
+    ),
+    function(m, .formula, .data) {
+        netgrowr::mle_network_growth(
+            .formula,
+            data = .data %>% drop_na() %>% filter(model == m),
+            split_by = "month",
+            label_with = "label"
+        )
+    }, .formula = fIntRC, .data = modelvars
+)
+tmp <- solve(MIntRC$preferential_acquisition$hessian)
+
+
+map(MIntRC, ~ {
+    se <- sqrt(diag(solve(.x$hessian[-1, -1])))
+    x <- coef(.x)[-1]
+    tval <- x / se
+    return(tval)
+}) %>%
+    map(~{as_tibble(as.list(.))}) %>%
+    list_rbind() %>%
+    bind_cols(tibble(model = c("pref. acq.", "lure of assoc.")))
+
+MCombRC <- map(
+    c(
+        preferential_acquisition = "preferential_acquisition",
+        lure_of_the_associates = "lure_of_the_associates"
+    ),
+    function(m, .formula, .data) {
+        netgrowr::mle_network_growth(
+            .formula,
+            data = .data %>% drop_na() %>% filter(model == m),
+            split_by = "month",
+            label_with = "label"
+        )
+    }, .formula = f1RC, .data = modelvars
+)
+
+list(
+    model_comparison(MIntRC$preferential_acquisition, MCombRC$preferential_acquisition),
+    model_comparison(MIntRC$lure_of_the_associates, MCombRC$lure_of_the_associates)
+) %>% map(~{as_tibble(as.list(.))}) %>% list_rbind() %>% bind_cols(tibble(model = c("pref. acq.", "lure of assoc.")))
+list(
+    model_comparison(MGroupRC$preferential_acquisition, MCombRC$preferential_acquisition),
+    model_comparison(MGroupRC$lure_of_the_associates, MCombRC$lure_of_the_associates)
+) %>% map(~{as_tibble(as.list(.))}) %>% list_rbind() %>% bind_cols(tibble(model = c("pref. acq.", "lure of assoc.")))
 # Define cluster for parallel computing and optimize models ----
 
 # The optimization process is not guaranteed to find a global minimum.
