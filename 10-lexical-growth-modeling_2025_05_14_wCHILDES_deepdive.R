@@ -35,7 +35,23 @@ list_or_vec <- function(x) {
 # If we model month 30, all unknown words will be learned.
 # To avoid this, month 30 is not modeled.
 modelvars_df <- readRDS("./network/modelvars_vsoa_2025_05_14_relearn0.rds") |>
-    mutate(label = paste(group, num_item_id))
+    mutate(
+        label = paste(group, num_item_id)
+    ) |>
+    rename(
+        vsoa = aoa,
+        step = month,
+        gv_pat1 = preferential_attachment_child,
+        gv_pat2 = preferential_attachment_childes,
+        gv_pac1 = preferential_acquisition_child,
+        gv_pac2 = preferential_acquisition_childes,
+        gv_loa1 = lure_of_the_associates_child,
+        gv_loa2 = lure_of_the_associates_childes
+    ) |>
+    group_by(group, step) |>
+    mutate(
+        across(starts_with("gv_"), list(z = ~ (.x - mean(.x, na.rm = TRUE)) / sd(.x, na.rm = TRUE)))
+    )
 
 modelvars_df |>
     select(group, num_item_id, word, month, aoa, learned, ends_with("_child"), ends_with("_childes")) |>
@@ -93,11 +109,50 @@ modelvars_rn <- imap(modelvars_rn, function(x, g) {
         mutate(across(ends_with(g), list(z_month = Z)))
 })
 
+confounds <- modelvars_df |>
+    select(num_item_id, word, nphon, CHILDES_Freq, BiphonProb.avg, PNDC.avg) |>
+    distinct() |>
+    mutate(across(c(nphon, CHILDES_Freq), list(log = ~ log(.x + 1))))
+
+# Orthogonalizing Confounds ----
+# Number of phonemes is strongly (anti)correlated with frequency and
+# phonological neighborhood density. It is moderately correlated with average
+# biphone probability. Additionally, neighborhood density is correlated with frequency.
+confounds |>
+    select(nphon_log, CHILDES_Freq_log, BiphonProb.avg, PNDC.avg) |>
+    cor()
+
+# A principal components analysis which selects and rotates the first three
+# factors obtains a solution where, essentially, number of phonemes is folded
+# into each factor proportional to its correlation, and the three factors
+# correspond more or less with Frequency, neighborhood density, and biphon
+# probability. These rotated components may be a little cleaner to work with.
+pca_varimax <- principal(
+    select(confounds, nphon_log, CHILDES_Freq_log, BiphonProb.avg, PNDC.avg),
+    nfactors = 3,
+    rotate = "varimax"
+)
+
+confounds <- bind_cols(
+    confounds,
+    pca_varimax$scores |> as_tibble()
+)
+modelvars_df <- modelvars_df |>
+    left_join(select(confounds, num_item_id, RC1, RC2, RC3)) |>
+    select(-nphon, -CHILDES_Freq, -BiphonProb.avg, -PNDC.avg) |>
+    relocate(label, num_item_id, .before = word) |>
+    rename_with(
+        ~ stringr::str_remove(.x, "gv_"),
+        starts_with("gv_")
+    )
+
+
+
 # Define models by constructing formulas ----
 
 # Empty (random selection) model
 # +++ All words assigned equal probability
-fE <- formula(aoa ~ 1)
+fE <- formula(vsoa ~ 1)
 ME <- netgrowr::mle_network_growth(fE, data = na.omit(modelvars_df), split_by = "month", label_with = "label")
 
 # Psycholinguistic baseline model
@@ -105,19 +160,99 @@ ME <- netgrowr::mle_network_growth(fE, data = na.omit(modelvars_df), split_by = 
 # +++ CHILDES Frequency
 # +++ phonotactic probability (biphone)
 # +++ phonological neighborhood density (KU child corpus)
-f0 <- update(fE, ~ . + I(Z(log(nphon + 1))) + I(Z(log(CHILDES_Freq + 1))) + Z(BiphonProb.avg) + Z(PNDC.avg))
-M0 <- map(modelvars, ~ {
+f0 <- update(fE, ~ . + RC1 + RC2 + RC3)
+M0_split <- map(modelvars, ~ {
     netgrowr::mle_network_growth(f0, data = na.omit(.x), split_by = "month", label_with = "num_item_id")
 })
+
+M0 <- netgrowr::mle_network_growth(
+    f0,
+    data = modelvars_df,
+    split_by = "month",
+    label_with = "label"
+)
+
+contrasts(modelvars_df$group) <- c(-.5, .5)
+
+f0group <- update(f0, ~ . + group)
+M0group <- netgrowr::mle_network_growth(
+    f0group,
+    data = modelvars_df,
+    split_by = "month",
+    label_with = "label"
+)
+
+f0groupx <- update(f0, ~ (.) * group)
+M0groupx <- netgrowr::mle_network_growth(
+    f0groupx,
+    data = modelvars_df,
+    split_by = "month",
+    label_with = "label"
+)
+
+f1group <- list(
+    assoc = list(
+        pat = update(f0, ~ . + pat1_z + group),
+        loa = update(f0, ~ . + loa1_z + group),
+        pac = update(f0, ~ . + pac1_z + group)
+    ),
+    childes = list(
+        pat = update(f0, ~ . + pat2_z + group),
+        loa = update(f0, ~ . + loa2_z + group),
+        pac = update(f0, ~ . + pac2_z + group)
+    ),
+    both = list(
+        pat = update(f0, ~ . + pat1_z + pat2_z + group ),
+        loa = update(f0, ~ . + loa1_z + loa2_z + group ),
+        pac = update(f0, ~ . + pac1_z + pac2_z + group )
+    )
+)
+
+M1group <- map_depth(f1group, 2, ~{
+    netgrowr::mle_network_growth(
+        .x,
+        data = modelvars_df,
+        split_by = "step",
+        label_with = "label"
+    )
+
+}, .progress = TRUE)
+
+model_comparison(M1group$assoc, M0group)
+
+
+f1groupx <- list(
+    assoc = list(
+        pat = update(f0, ~ (. + pat1_z) * group),
+        loa = update(f0, ~ (. + loa1_z) * group),
+        pac = update(f0, ~ (. + pac1_z) * group)
+    ),
+    childes = list(
+        pat = update(f0, ~ (. + pat2_z) * group),
+        loa = update(f0, ~ (. + loa2_z) * group),
+        pac = update(f0, ~ (. + pac2_z) * group)
+    ),
+    both = list(
+        pat = update(f0, ~ (. + pat1_z + pat2_z) * group ),
+        loa = update(f0, ~ (. + loa1_z + loa2_z) * group ),
+        pac = update(f0, ~ (. + pac1_z + pac2_z) * group )
+    )
+)
+M1groupx <- map_depth(f1groupx, 2, ~{
+    netgrowr::mle_network_growth(
+        .x,
+        data = modelvars_df,
+        split_by = "step",
+        label_with = "label"
+    )
+
+}, .progress = TRUE)
+
 
 f0_nofreq <- update(fE, ~ . + I(Z(log(nphon + 1))) + Z(BiphonProb.avg) + Z(PNDC.avg))
 M0_nofreq <- map(modelvars, ~ {
     netgrowr::mle_network_growth(f0_nofreq, data = na.omit(.x), split_by = "month", label_with = "num_item_id")
 })
-
-# M0gR <- netgrowr::mle_network_growth(f0, data = na.omit(modelvars_df), split_by = "month", label_with = "label")
-# f0g <- update(f0, ~ (.) * group)
-# M0gF <- netgrowr::mle_network_growth(f0g, data = na.omit(modelvars_df), split_by = "month", label_with = "label")
 
 # Networks over control
 network_gv1 <- list(
