@@ -19,7 +19,7 @@ model_comp_helper <- function(full, restricted, M) {
 # Month 30 is the highest month we have AoA data for.
 # If we model month 30, all unknown words will be learned.
 # To avoid this, month 30 is not modeled.
-modelvars <- readRDS("./network/modelvars.rds")
+modelvars <- readRDS("./network/modelvars-vsoa-20250514.rds")
 modelvars <- modelvars %>%
     drop_na() %>%
     mutate(

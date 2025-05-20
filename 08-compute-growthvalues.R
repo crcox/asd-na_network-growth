@@ -125,24 +125,43 @@ modelvars <- growthvalues |>
 
 saveRDS(modelvars, file = "./network/modelvars-vsoa-long-20250514.rds")
 
+mutate_factor_with <- function(.data, levels_from, labels_from, .factor_to = NULL) {
+    key <- .data |>
+        select(levels = !!rlang::ensym(levels_from), labels = !!rlang::ensym(labels_from)) |>
+        distinct()
+    cat("1")
+    newvar <- if (is.null(.factor_to)) {
+        !!rlang::ensym(labels_from)
+    } else {
+        !!rlang::ensym(.factor_to)
+    }
+    cat("2")
+    .data |>
+        mutate(newvar = factor(levels_from, key$levels, key$labels))
+}
 
 # WIDE VERSION ----
 modelvars <- growthvalues |>
     tidyr::pivot_wider(
-        id_cols = c("word", "month", "learned", "vocab_step"),
-        names_from = c(network, group, model),
+        id_cols = c("group", "word", "month", "learned", "vocab_step"),
+        names_from = c(network, model),
         values_from = "value"
     ) |>
     left_join(phono_baseline, by = "word") |>
-    left_join(vsoa_df |>
-                  filter(group == "autistic") |>
-                  select(word, vsoa_autistic = vsoa, vsoa_bin_autistic = by_20),
-              by = "word"
+    left_join(
+        vsoa_df |>
+            select(
+                group,
+                vid,
+                word,
+                vsoa,
+                vsoa_bin = by_20
+            ),
+        by = c("group", "word")
     ) |>
-    left_join(vsoa_df |>
-                  filter(group == "nonautistic") |>
-                  select(word, vsoa_nonautistic = vsoa, vsoa_bin_nonautistic = by_20),
-              by = "word"
+    mutate(
+        group = factor(group, c("autistic", "nonautistic")),
+        word = factor(vid, sort(unique(vid)), word)
     )
 
 
