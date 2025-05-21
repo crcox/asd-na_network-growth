@@ -38,7 +38,7 @@ modelvars_df <- readRDS("./network/modelvars_vsoa_2025_05_14_relearn0.rds") |>
     mutate(label = paste(group, num_item_id))
 
 modelvars_df |>
-    select(group, num_item_id, word, month, aoa, learned, ends_with("_child"), ends_with("_childes")) |>
+    select(group, vs, num_item_id, word, month, aoa, learned, ends_with("_child"), ends_with("_childes")) |>
     rename_with(~{sub("_ch", "Qch", .x)}) |>
     pivot_longer(
         cols = contains("Q"),
@@ -46,15 +46,23 @@ modelvars_df |>
         names_sep = "Q",
         values_to = "growth_value"
     ) |>
-    drop_na() |>
-    group_by(group, month, learned, growth_model, source) |>
+    drop_na(growth_value) |>
+    group_by(group, vs, month, learned, growth_model, source) |>
     summarize(
         across(growth_value, list(nnz = ~{sum(.x != 0)}, sum = sum, mean = mean, sd = sd, sumz = ~{sum(.x) / sd(.x)}, max = max))
     ) |>
+    group_by(group, learned, growth_model, source) |>
+    mutate(growth_value_sum_scaled = growth_value_sum / max(growth_value_sum)) |>
+    ungroup() |>
     filter(learned == FALSE) |>
-    ggplot(aes(x = month, y = growth_value_max, color = growth_model)) +
+    ggplot(aes(x = vs, y = growth_value_sum_scaled, color = growth_model)) +
         geom_point() +
-        facet_grid(group ~ source)
+        facet_grid(group ~ source) +
+        xlab("vocabulary size") +
+        ylab("scaled sum of growth values\nover unknown words") +
+        theme_bw(base_size = 14) +
+        scale_color_discrete(labels = c("LOA", "PAC", "PAT")) +
+        labs(color = "growth model")
 
 
 modelvars <- modelvars_df |>
