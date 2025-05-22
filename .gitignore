@@ -3,6 +3,8 @@
 .RData
 .Ruserdata
 
+*.tar
+
 data/
 model-fits/
 network/
