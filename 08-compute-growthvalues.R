@@ -7,7 +7,7 @@ library(igraph)
 library(netgrowr)
 
 # Load id key ----
-d <- readRDS("./data/vsoa-autistic-nonautistic-diff.rds")
+d <- readRDS("./data/vsoa-autistic-nonautistic-diff-ndar-id-fix-remodel-v2.rds")
 m <- readRDS("./data/cdi-metadata-preproc.rds")
 graphs <- list(
     child = upgrade_graph(readRDS("./network/child-net-graph-preproc.rds")),
@@ -101,7 +101,10 @@ growthvalues <- map(vsoa_lst, function (vsoa, adjmat_lst) {
     list_rbind(names_to = "group")
 
 # Save growth values ----
-saveRDS(growthvalues, file = "./network/growthvalues-autistic-nonautistic-20250514.rds")
+saveRDS(
+    growthvalues,
+    file = "./network/growthvalues-autistic-nonautistic-20250520.rds"
+)
 
 # Save wide-form data for lexical growth modeling ----
 # Specify and incorporate phonological baseline variables
@@ -123,31 +126,23 @@ modelvars <- growthvalues |>
     filter(vocab_step != "(660, Inf]") |>
     left_join(phono_baseline, by = "word")
 
-saveRDS(modelvars, file = "./network/modelvars-vsoa-long-20250514.rds")
-
-mutate_factor_with <- function(.data, levels_from, labels_from, .factor_to = NULL) {
-    key <- .data |>
-        select(levels = !!rlang::ensym(levels_from), labels = !!rlang::ensym(labels_from)) |>
-        distinct()
-    cat("1")
-    newvar <- if (is.null(.factor_to)) {
-        !!rlang::ensym(labels_from)
-    } else {
-        !!rlang::ensym(.factor_to)
-    }
-    cat("2")
-    .data |>
-        mutate(newvar = factor(levels_from, key$levels, key$labels))
-}
+saveRDS(modelvars, file = "./network/modelvars-vsoa-long-20250520.rds")
 
 # WIDE VERSION ----
+factor_with <- function(levels, labels) {
+    print(c(length(levels), length(labels)))
+    key <- tibble(levels, labels) |> distinct() |> drop_na()
+    str(key)
+    factor(levels, key$levels, key$labels)
+}
+
 modelvars <- growthvalues |>
     tidyr::pivot_wider(
         id_cols = c("group", "word", "month", "learned", "vocab_step"),
         names_from = c(network, model),
         values_from = "value"
     ) |>
-    left_join(phono_baseline, by = "word") |>
+    left_join(phono_baseline, by = c("word")) |>
     left_join(
         vsoa_df |>
             select(
@@ -157,12 +152,12 @@ modelvars <- growthvalues |>
                 vsoa,
                 vsoa_bin = by_20
             ),
-        by = c("group", "word")
+        by = c("group", "vid", "word")
     ) |>
     mutate(
         group = factor(group, c("autistic", "nonautistic")),
-        word = factor(vid, sort(unique(vid)), word)
+        word = factor_with(vid, word)
     )
 
 
-saveRDS(modelvars, file = "./network/modelvars-vsoa-20250514.rds")
+saveRDS(modelvars, file = "./network/modelvars-vsoa-20250520.rds")
