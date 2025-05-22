@@ -2,15 +2,15 @@ library(dplyr)
 library(purrr)
 library(tidyr)
 library(ggplot2)
+library(psych)
 
 
 # Rename variables ----
-modelvars_df <- readRDS("./network/modelvars_vsoa_2025_05_14_relearn0.rds") |>
+modelvars_df <- readRDS("./network/modelvars-vsoa-20250520.rds") |>
     mutate(
         label = paste(group, num_item_id)
     ) |>
     rename(
-        vsoa = aoa,
         step = month,
         gv_pat1 = preferential_attachment_child,
         gv_pat2 = preferential_attachment_childes,
@@ -21,37 +21,51 @@ modelvars_df <- readRDS("./network/modelvars_vsoa_2025_05_14_relearn0.rds") |>
     )
 
 
-# Standardize growth values by step ----
+# Standardize growth ----
+## by step ----
 modelvars_df <- modelvars_df |>
-    group_by(group, step) |>
+    group_by(group, known, step) |>
     mutate(
-        across(starts_with("gv_"), list(z = ~ (.x - mean(.x, na.rm = TRUE)) / sd(.x, na.rm = TRUE)))
-    )
+        across(starts_with("gv_"),
+               list(z = ~ (.x - mean(.x, na.rm = TRUE)) / sd(.x, na.rm = TRUE)))
+    ) |>
+    ungroup()
 
+
+## over all steps ----
+modelvars_df <- modelvars_df |>
+    group_by(group, known) |>
+    mutate(
+        across(starts_with("gv_") & !ends_with("_z"),
+               list(Z = ~ (.x - mean(.x, na.rm = TRUE)) / sd(.x, na.rm = TRUE)))
+    ) |>
+    ungroup()
+
+## add suffix to raw growth values
+modelvars_df <- modelvars_df |>
+    rename_with(~ paste0(.x, "_r"), starts_with("gv") & !(ends_with("z") | ends_with("Z")))
+
+
+# Visualize Growth Values by Step ----
 modelvars_df |>
-    select(group, num_item_id, word, step, vsoa, learned, starts_with("gv_")) |>
+    select(group, known, learned, step, num_item_id, word, vsoa, starts_with("gv_")) |>
     pivot_longer(
         cols = starts_with("gv_"),
-        names_to = c("growth_model", "source"),
-        names_pattern = "gv_([pl][ao][act])([12])",
+        names_to = c("growth_model", "source", "scale"),
+        names_pattern = "gv_([pl][ao][act])([12])_([rzZ])",
         values_to = "growth_value"
     ) |>
     mutate(source = factor(as.numeric(source), 1:2, c("assoc", "childes"))) |>
     drop_na() |>
-    group_by(group, step, learned, growth_model, source) |>
+    group_by(group, known, step, growth_model, source, scale) |>
     summarize(
         across(growth_value, list(nnz = ~{sum(.x != 0)}, sum = sum, mean = mean, sd = sd, sumz = ~{sum(.x) / sd(.x)}, max = max))
     ) |>
-    filter(learned == FALSE) |>
-    ggplot(aes(x = step, y = growth_value_max, color = growth_model)) +
+    ungroup() |>
+    filter(known == FALSE) |>
+    ggplot(aes(x = step, y = growth_value_mean, color = growth_model)) +
         geom_point() +
-        facet_grid(group ~ source)
-
-
-confounds <- modelvars_df |>
-    select(num_item_id, word, nphon, CHILDES_Freq, BiphonProb.avg, PNDC.avg) |>
-    distinct() |>
-    mutate(across(c(nphon, CHILDES_Freq), list(log = ~ log(.x + 1))))
+        facet_grid(scale + source ~ group, scales = "free_y")
 
 
 # Orthogonalizing Confounds ----
@@ -60,6 +74,12 @@ confounds <- modelvars_df |>
 # Number of phonemes is strongly (anti)correlated with frequency and
 # phonological neighborhood density. It is moderately correlated with average
 # biphone probability. Additionally, neighborhood density is correlated with frequency.
+confounds <- modelvars_df |>
+    select(num_item_id, word, nphon, CHILDES_Freq, BiphonProb.avg, PNDC.avg) |>
+    distinct() |>
+    mutate(across(c(nphon, CHILDES_Freq), list(log = ~ log(.x + 1))))
+
+
 confounds |>
     select(nphon_log, CHILDES_Freq_log, BiphonProb.avg, PNDC.avg) |>
     cor()
@@ -77,7 +97,7 @@ pca_varimax <- principal(
 )
 
 
-## update dataframe ----
+## add confound factors to dataframe ----
 confounds <- bind_cols(
     confounds,
     pca_varimax$scores |> as_tibble()
@@ -108,7 +128,8 @@ modelvars <- modelvars_df |>
 names(modelvars) <- modelvars_df |>
     group_by(group) |>
     group_keys() |>
-    pull(group)
+    pull(group) |>
+    factor(levels = c("autistic", "nonautistic"), labels = c("asd", "td"))
 
 
 ## Append group label to growth model variables ----
@@ -118,25 +139,18 @@ modelvars_rn <- imap(modelvars, function(.x, group) {
         .fn = function(x, y) {
             paste(x, y, sep = "_")
         },
-        .cols = c(
-            pat1,
-            pat2,
-            loa1,
-            loa2,
-            pac1,
-            pac2
-        ),
+        .cols = starts_with("pat") | starts_with("loa") | starts_with("pac"),
         y = group
     )
 })
 
 
-## standardize growth values ----
-modelvars_rn <- imap(modelvars_rn, function(x, g) {
-    x |>
-        mutate(across(ends_with(g), list(z_overall = ~ (.x - mean(.x, na.rm = T)) / sd(.x, na.rm = T)))) |>
-        group_by(month) |>
-        mutate(across(ends_with(g), list(z = ~ (.x - mean(.x, na.rm = T)) / sd(.x, na.rm = T))))
-})
+## standardize growth values (skip, this happens earlier) ----
+# modelvars_rn <- imap(modelvars_rn, function(x, g) {
+#     x |>
+#         mutate(across(ends_with(g), list(z_overall = ~ (.x - mean(.x, na.rm = T)) / sd(.x, na.rm = T)))) |>
+#         group_by(step) |>
+#         mutate(across(ends_with(g), list(z = ~ (.x - mean(.x, na.rm = T)) / sd(.x, na.rm = T))))
+# })
 
 saveRDS(modelvars_rn, "network/modelvars_vsoa_RC_z_split.rds")

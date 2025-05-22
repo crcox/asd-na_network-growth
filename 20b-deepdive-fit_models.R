@@ -12,8 +12,8 @@ modelvars_df <- readRDS("network/modelvars_vsoa_RC_z.rds")
 
 # Empty (random selection) model ----
 # +++ All words assigned equal probability
-fE <- formula(vsoa ~ 1)
-ME <- netgrowr::mle_network_growth(fE, data = na.omit(modelvars_df), split_by = "month", label_with = "label")
+fE <- formula(vsoa_bin ~ 1)
+ME <- netgrowr::mle_network_growth(fE, data = na.omit(modelvars_df), split_by = "vocab_step", label_with = "label")
 saveRDS(ME, "model-fits/empty-model.rds")
 
 
@@ -43,37 +43,37 @@ saveRDS(ME, "model-fits/empty-model.rds")
 ## no group ----
 f0_nogroup <- update(fE, ~ . + RC1 + RC2 + RC3)
 M0_nogroup <- netgrowr::mle_network_growth(
-    f0,
+    f0_nogroup,
     data = modelvars_df,
-    split_by = "month",
+    split_by = "vocab_step",
     label_with = "label"
 )
 saveRDS(M0_nogroup, "model-fits/baseline-model-nogroup.rds")
 
 
 ## no interaction ----
-f0_nointeraction <- update(f0, ~ . + group)
+f0_nointeraction <- update(f0_nogroup, ~ . + group)
 M0_nointeraction <- netgrowr::mle_network_growth(
-    f0group,
+    f0_nointeraction,
     data = modelvars_df,
-    split_by = "month",
+    split_by = "vocab_step",
     label_with = "label"
 )
 saveRDS(M0_nointeraction, "model-fits/baseline-model-nointeraction.rds")
 
 
 ## with interaction ----
-f0 <- update(f0, ~ (.) * group)
+f0 <- update(f0_nogroup, ~ (.) * group)
 M0 <- netgrowr::mle_network_growth(
-    f0groupx,
+    f0,
     data = modelvars_df,
-    split_by = "month",
+    split_by = "vocab_step",
     label_with = "label"
 )
 saveRDS(M0, "model-fits/baseline-model.rds")
 
 
-# Models with one growth model type ----
+# Models with one growth value type ----
 ## no group ----
 f1_nogroup <- list(
     assoc = list(

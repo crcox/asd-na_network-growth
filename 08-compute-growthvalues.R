@@ -79,6 +79,11 @@ vsoa_lst <- vsoa_df |>
 
 names(vsoa_lst) <- vsoa_keys$group
 
+tmp <- netgrowr::growth_values(
+    adjmat_lst$child,
+    aoa_tbl = vsoa_lst$autistic |> select(word, by_20) |> mutate(by_20 = as.numeric(by_20)),
+    growth_models = c("preferential_attachment", "lure_of_the_associates", "preferential_acquisition")
+) |> as_tibble()
 growthvalues <- map(vsoa_lst, function (vsoa, adjmat_lst) {
     map(adjmat_lst, function(adjmat, vsoa) {
         netgrowr::growth_values(
@@ -110,7 +115,7 @@ saveRDS(
 # Specify and incorporate phonological baseline variables
 phono_baseline <- m |>
     select(
-        word = cue_CoxHae,
+        word = lemma,
         num_item_id,
         nphon,
         CHILDES_Freq,
@@ -118,7 +123,10 @@ phono_baseline <- m |>
         PNDC.avg
     ) |>
     left_join(vertex_ids, by = "word") |>
-    filter(!is.na(vid))
+    as_tibble()
+
+filter(phono_baseline, is.na(vid))
+summary(phono_baseline)
 
 
 # LONG VERSION ----
@@ -128,18 +136,17 @@ modelvars <- growthvalues |>
 
 saveRDS(modelvars, file = "./network/modelvars-vsoa-long-20250520.rds")
 
+
 # WIDE VERSION ----
 factor_with <- function(levels, labels) {
-    print(c(length(levels), length(labels)))
     key <- tibble(levels, labels) |> distinct() |> drop_na()
-    str(key)
     factor(levels, key$levels, key$labels)
 }
 
 modelvars <- growthvalues |>
     tidyr::pivot_wider(
-        id_cols = c("group", "word", "month", "learned", "vocab_step"),
-        names_from = c(network, model),
+        id_cols = c("group", "word", "month", "known", "learned", "vocab_step"),
+        names_from = c(model, network),
         values_from = "value"
     ) |>
     left_join(phono_baseline, by = c("word")) |>
@@ -161,3 +168,11 @@ modelvars <- growthvalues |>
 
 
 saveRDS(modelvars, file = "./network/modelvars-vsoa-20250520.rds")
+
+
+modelvars |>
+    select(word, group, ends_with("id")) |>
+    distinct() |>
+    mutate(rowname = rownames(adjmat_lst$child)[vid]) |>
+    filter(word != rowname) |>
+    count(group)
