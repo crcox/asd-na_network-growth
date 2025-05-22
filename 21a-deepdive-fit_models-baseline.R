@@ -76,3 +76,118 @@ saveRDS(M0, "model-fits/baseline-model.rds")
 M0 <- readRDS("model-fits/baseline-model.rds")
 
 
+
+# Single RC models ----
+
+## no group ----
+fRC_1_nogroup <- list(
+    RC1 = update(fE, ~ . + RC1),
+    RC2 = update(fE, ~ . + RC2),
+    RC3 = update(fE, ~ . + RC3)
+)
+MRC_1_nogroup <- map(fRC_1_nogroup,  ~{
+    netgrowr::mle_network_growth(
+        .x,
+        data = modelvars_df,
+        split_by = "vocab_step",
+        label_with = "label"
+    )
+}, .progress = list(name = "MRC 1 (no group)"))
+saveRDS(MRC_1_nogroup, "model-fits/RC-1-model-nogroup.rds")
+
+
+## no interaction ----
+fRC_1_nointeraction <- list(
+    RC1 = update(fE, ~ . + RC1),
+    RC2 = update(fE, ~ . + RC2),
+    RC3 = update(fE, ~ . + RC3)
+)
+MRC_1_nointeraction <- map(fRC_1_nointeraction,  ~{
+    netgrowr::mle_network_growth(
+        .x,
+        data = modelvars_df,
+        split_by = "vocab_step",
+        label_with = "label"
+    )
+}, .progress = list(name = "MRC 1 (no group)"))
+saveRDS(MRC_1_nointeraction, "model-fits/RC-1-model-nointeraction.rds")
+
+
+f0_nointeraction <- update(f0_nogroup, ~ . + group)
+M0_nointeraction <- netgrowr::mle_network_growth(
+    f0_nointeraction,
+    data = modelvars_df,
+    split_by = "vocab_step",
+    label_with = "label"
+)
+saveRDS(M0_nointeraction, "model-fits/baseline-model-nointeraction.rds")
+# M0_nointeraction <- readRDS("model-fits/baseline-model-nointeraction.rds")
+
+
+## with interaction ----
+fRC_1_full <- list(
+    RC1 = update(fE, ~ (. + RC1) * group),
+    RC2 = update(fE, ~ (. + RC2) * group),
+    RC3 = update(fE, ~ (. + RC3) * group)
+)
+MRC_1_full <- map(fRC_1_full,  ~{
+    netgrowr::mle_network_growth(
+        .x,
+        data = modelvars_df,
+        split_by = "vocab_step",
+        label_with = "label"
+    )
+}, .progress = list(name = "MRC 1 (no group)"))
+saveRDS(MRC_1_full, "model-fits/RC-1-model-full.rds")
+
+
+# Double RC models ----
+
+## no group ----
+fRC_2_nogroup <- list(
+    RC1_RC2 = update(fE, ~ . + RC1 + RC2),
+    RC1_RC3 = update(fE, ~ . + RC1 + RC3),
+    RC2_RC3 = update(fE, ~ . + RC2 + RC3)
+)
+MRC_2_nogroup <- map(fRC_2_nogroup,  ~{
+    netgrowr::mle_network_growth(
+        .x,
+        data = modelvars_df,
+        split_by = "vocab_step",
+        label_with = "label"
+    )
+}, .progress = list(name = "MRC 2 (no group)"))
+saveRDS(MRC_2_nogroup, "model-fits/RC-2-model-nogroup.rds")
+
+
+## no interaction ----
+fRC_2_nointeraction <- list(
+    RC1_RC2 = update(fE, ~ . group + RC1 + RC2),
+    RC1_RC3 = update(fE, ~ . group + RC1 + RC3),
+    RC2_RC3 = update(fE, ~ . group + RC2 + RC3)
+)
+MRC_2_nointeraction <- map(fRC_2_nointeraction,  ~{
+    netgrowr::mle_network_growth(
+        .x,
+        data = modelvars_df,
+        split_by = "vocab_step",
+        label_with = "label"
+    )
+}, .progress = list(name = "MRC 2 (no group)"))
+saveRDS(MRC_2_nointeraction, "model-fits/RC-2-model-nointeraction.rds")
+
+## with interaction ----
+fRC_2_full <- list(
+    RC1_RC2 = update(fE, ~ (. + RC1 + RC2) * group),
+    RC1_RC3 = update(fE, ~ (. + RC1 + RC3) * group),
+    RC2_RC3 = update(fE, ~ (. + RC2 + RC3) * group)
+)
+MRC_2_full <- map(fRC_2_full,  ~{
+    netgrowr::mle_network_growth(
+        .x,
+        data = modelvars_df,
+        split_by = "vocab_step",
+        label_with = "label"
+    )
+}, .progress = list(name = "MRC 2 (no group)"))
+saveRDS(MRC_2_full, "model-fits/RC-2-model-full.rds")
