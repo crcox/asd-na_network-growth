@@ -243,7 +243,7 @@ f3 <- list(
     ),
     childes = list(
         pat_loa_pac = update(f0_nogroup, ~ (. + pat2_z + loa2_z + pac2_z) * group)
-    ,
+    ),
     both = list(
         pat_loa_pac = update(f0_nogroup, ~ (. + pat1_z + loa1_z + pac1_z + pat2_z + loa2_z + pac2_z) * group)
     )
