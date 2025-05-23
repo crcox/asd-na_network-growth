@@ -161,49 +161,22 @@ saveRDS(M2_nogroup, "model-fits/z-overall/growth-models-2-nogroup.rds")
 ## no interaction ----
 f2_nointeraction <- list(
     assoc = list(
-        pat = list(
-            loa = update(f0_nogroup, ~ . + group + pat1_Z + loa1_Z),
-            pac = update(f0_nogroup, ~ . + group + pat1_Z + pac1_Z)
-        ),
-        loa = list(
-            pat = update(f0_nogroup, ~ . + group + loa1_Z + pat1_Z),
-            pac = update(f0_nogroup, ~ . + group + loa1_Z + pac1_Z)
-        ),
-        pac = list(
-            loa = update(f0_nogroup, ~ . + group + pat1_Z + loa1_Z),
-            pac = update(f0_nogroup, ~ . + group + pat1_Z + pac1_Z)
-        )
+        pat_loa = update(f0_nogroup, ~ . + group + pat1_Z + loa1_Z),
+        pat_pac = update(f0_nogroup, ~ . + group + pat1_Z + pac1_Z),
+        loa_pac = update(f0_nogroup, ~ . + group + loa1_Z + pac1_Z)
     ),
     childes = list(
-        pat = list(
-            loa = update(f0_nogroup, ~ . + group + pat2_Z + loa2_Z),
-            pac = update(f0_nogroup, ~ . + group + pat2_Z + pac2_Z)
-        ),
-        loa = list(
-            pat = update(f0_nogroup, ~ . + group + loa2_Z + pat2_Z),
-            pac = update(f0_nogroup, ~ . + group + loa2_Z + pac2_Z)
-        ),
-        pac = list(
-            loa = update(f0_nogroup, ~ . + group + pat2_Z + loa2_Z),
-            pac = update(f0_nogroup, ~ . + group + pat2_Z + pac2_Z)
-        )
+        pat_loa = update(f0_nogroup, ~ . + group + pat2_Z + loa2_Z),
+        pat_pac = update(f0_nogroup, ~ . + group + pat2_Z + pac2_Z),
+        loa_pac = update(f0_nogroup, ~ . + group + loa2_Z + pac2_Z)
     ),
     both = list(
-        pat = list(
-            loa = update(f0_nogroup, ~ . + group + pat1_Z + pat2_Z + loa1_Z+ loa2_Z),
-            pac = update(f0_nogroup, ~ . + group + pat1_Z + pat2_Z + pac1_Z+ pac2_Z)
-        ),
-        loa = list(
-            pat = update(f0_nogroup, ~ . + group + loa1_Z + loa2_Z + pat1_Z + pat2_Z),
-            pac = update(f0_nogroup, ~ . + group + loa1_Z + loa2_Z + pac1_Z + pac2_Z)
-        ),
-        pac = list(
-            loa = update(f0_nogroup, ~ . + group + pat1_Z + pat2_Z + loa1_Z + loa2_Z),
-            pac = update(f0_nogroup, ~ . + group + pat1_Z + pat2_Z + pac1_Z + pac2_Z)
-        )
+        pat_loa = update(f0_nogroup, ~ . + group + pat1_Z + pat2_Z + loa1_Z+ loa2_Z),
+        pat_pac = update(f0_nogroup, ~ . + group + pat1_Z + pat2_Z + pac1_Z+ pac2_Z),
+        loa_pac = update(f0_nogroup, ~ . + group + loa1_Z + loa2_Z + pac1_Z + pac2_Z)
     )
 )
-M2_nointeraction <- map_depth(f2_nointeraction, 3, ~{
+M2_nointeraction <- map_depth(f2_nointeraction, 2, ~{
     netgrowr::mle_network_growth(
         .x,
         data = modelvars_df,
@@ -217,49 +190,22 @@ saveRDS(M2_nointeraction, "model-fits/z-overall/growth-models-2-nointeraction.rd
 ## with interaction ----
 f2 <- list(
     assoc = list(
-        pat = list(
-            loa = update(f0_nogroup, ~ (. + pat1_Z + loa1_Z) * group),
-            pac = update(f0_nogroup, ~ (. + pat1_Z + pac1_Z) * group)
-        ),
-        loa = list(
-            pat = update(f0_nogroup, ~ (. + loa1_Z + pat1_Z) * group),
-            pac = update(f0_nogroup, ~ (. + loa1_Z + pac1_Z) * group)
-        ),
-        pac = list(
-            loa = update(f0_nogroup, ~ (. + pat1_Z + loa1_Z) * group),
-            pac = update(f0_nogroup, ~ (. + pat1_Z + pac1_Z) * group)
-        )
+        pat_loa = update(f0_nogroup, ~ (. + pat1_Z + loa1_Z) * group),
+        pat_pac = update(f0_nogroup, ~ (. + pat1_Z + pac1_Z) * group),
+        loa_pac = update(f0_nogroup, ~ (. + loa1_Z + pac1_Z) * group)
     ),
     childes = list(
-        pat = list(
-            loa = update(f0_nogroup, ~ (. + pat2_Z + loa2_Z) * group),
-            pac = update(f0_nogroup, ~ (. + pat2_Z + pac2_Z) * group)
-        ),
-        loa = list(
-            pat = update(f0_nogroup, ~ (. + loa2_Z + pat2_Z) * group),
-            pac = update(f0_nogroup, ~ (. + loa2_Z + pac2_Z) * group)
-        ),
-        pac = list(
-            loa = update(f0_nogroup, ~ (. + pat2_Z + loa2_Z) * group),
-            pac = update(f0_nogroup, ~ (. + pat2_Z + pac2_Z) * group)
-        )
+        pat_loa = update(f0_nogroup, ~ (. + pat2_Z + loa2_Z) * group),
+        pat_pac = update(f0_nogroup, ~ (. + pat2_Z + pac2_Z) * group),
+        loa_pac = update(f0_nogroup, ~ (. + loa2_Z + pac2_Z) * group)
     ),
     both = list(
-        pat = list(
-            loa = update(f0_nogroup, ~ (. + pat1_Z + pat2_Z + loa1_Z+ loa2_Z) * group),
-            pac = update(f0_nogroup, ~ (. + pat1_Z + pat2_Z + pac1_Z+ pac2_Z) * group)
-        ),
-        loa = list(
-            pat = update(f0_nogroup, ~ (. + loa1_Z + loa2_Z + pat1_Z + pat2_Z) * group),
-            pac = update(f0_nogroup, ~ (. + loa1_Z + loa2_Z + pac1_Z + pac2_Z) * group)
-        ),
-        pac = list(
-            loa = update(f0_nogroup, ~ (. + pat1_Z + pat2_Z + loa1_Z + loa2_Z) * group),
-            pac = update(f0_nogroup, ~ (. + pat1_Z + pat2_Z + pac1_Z + pac2_Z) * group)
-        )
+        pat_loa = update(f0_nogroup, ~ (. + pat1_Z + pat2_Z + loa1_Z + loa2_Z) * group),
+        pat_pac = update(f0_nogroup, ~ (. + pat1_Z + pat2_Z + pac1_Z + pac2_Z) * group),
+        loa_pac = update(f0_nogroup, ~ (. + loa1_Z + loa2_Z + pac1_Z + pac2_Z) * group)
     )
 )
-M2 <- map_depth(f2, 3, ~{
+M2 <- map_depth(f2, 2, ~{
     netgrowr::mle_network_growth(
         .x,
         data = modelvars_df,
@@ -274,28 +220,16 @@ saveRDS(M2_nogroup, "model-fits/z-overall/growth-models-2-full.rds")
 ## no group ----
 f3_nogroup <- list(
     assoc = list(
-        pat = list(
-            loa = list(
-                pac = update(f0_nogroup, ~ . + pat1_Z + loa1_Z + pac1_Z)
-            )
-        )
+        pat_loa_pac = update(f0_nogroup, ~ . + pat1_Z + loa1_Z + pac1_Z)
     ),
     childes = list(
-        pat = list(
-            loa = list(
-                pac = update(f0_nogroup, ~ . + pat2_Z + loa2_Z + pac2_Z)
-            )
-        )
+        pat_loa_pac = update(f0_nogroup, ~ . + pat2_Z + loa2_Z + pac2_Z)
     ),
     both = list(
-        pat = list(
-            loa = list(
-                pac = update(f0_nogroup, ~ . + pat1_Z + loa1_Z + pac1_Z + pat2_Z + loa2_Z + pac2_Z)
-            )
-        )
+        pat_loa_pac = update(f0_nogroup, ~ . + pat1_Z + loa1_Z + pac1_Z + pat2_Z + loa2_Z + pac2_Z)
     )
 )
-M3_nogroup <- map_depth(f3_nogroup, 4, ~{
+M3_nogroup <- map_depth(f3_nogroup, 2, ~{
     netgrowr::mle_network_growth(
         .x,
         data = modelvars_df,
@@ -309,28 +243,16 @@ saveRDS(M3_nogroup, "model-fits/z-overall/growth-models-3-nogroup.rds")
 ## no interaction ----
 f3_nointeraction <- list(
     assoc = list(
-        pat = list(
-            loa = list(
-                pac = update(f0_nogroup, ~ . + group + pat1_Z + loa1_Z + pac1_Z)
-            )
-        )
+        pat_loa_pac = update(f0_nogroup, ~ . + group + pat1_Z + loa1_Z + pac1_Z)
     ),
     childes = list(
-        pat = list(
-            loa = list(
-                pac = update(f0_nogroup, ~ . + group + pat2_Z + loa2_Z + pac2_Z)
-            )
-        )
+        pat_loa_pac = update(f0_nogroup, ~ . + group + pat2_Z + loa2_Z + pac2_Z)
     ),
     both = list(
-        pat = list(
-            loa = list(
-                pac = update(f0_nogroup, ~ . + group + pat1_Z + loa1_Z + pac1_Z + pat2_Z + loa2_Z + pac2_Z)
-            )
-        )
+        pat_loa_pac = update(f0_nogroup, ~ . + group + pat1_Z + loa1_Z + pac1_Z + pat2_Z + loa2_Z + pac2_Z)
     )
 )
-M3_nointeraction <- map_depth(f3_nointeraction, 4, ~{
+M3_nointeraction <- map_depth(f3_nointeraction, 2, ~{
     netgrowr::mle_network_growth(
         .x,
         data = modelvars_df,
@@ -344,28 +266,16 @@ saveRDS(M3_nointeraction, "model-fits/z-overall/growth-models-3-nointeraction.rd
 ## with interaction ----
 f3 <- list(
     assoc = list(
-        pat = list(
-            loa = list(
-                pac = update(f0_nogroup, ~ (. + pat1_Z + loa1_Z + pac1_Z) * group)
-            )
-        )
+        pat_loa_pac = update(f0_nogroup, ~ (. + pat1_Z + loa1_Z + pac1_Z) * group)
     ),
     childes = list(
-        pat = list(
-            loa = list(
-                pac = update(f0_nogroup, ~ (. + pat2_Z + loa2_Z + pac2_Z) * group)
-            )
-        )
+        pat_loa_pac = update(f0_nogroup, ~ (. + pat2_Z + loa2_Z + pac2_Z) * group)
     ),
     both = list(
-        pat = list(
-            loa = list(
-                pac = update(f0_nogroup, ~ (. + pat1_Z + loa1_Z + pac1_Z + pat2_Z + loa2_Z + pac2_Z) * group)
-            )
-        )
+        pat_loa_pac = update(f0_nogroup, ~ (. + pat1_Z + loa1_Z + pac1_Z + pat2_Z + loa2_Z + pac2_Z) * group)
     )
 )
-M3 <- map_depth(f3, 4, ~{
+M3 <- map_depth(f3, 2, ~{
     netgrowr::mle_network_growth(
         .x,
         data = modelvars_df,
