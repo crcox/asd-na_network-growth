@@ -16,6 +16,14 @@ M1_nogroup_z <- readRDS("model-fits/z-by-step/growth-models-1-nogroup.rds")
 M1_nointeraction_z <- readRDS("model-fits/z-by-step/growth-models-1-nointeraction.rds")
 M1_full_z <- readRDS("model-fits/z-by-step/growth-models-1-full.rds")
 
+M2_nogroup_r <- readRDS("model-fits/raw/growth-models-2-nogroup.rds")
+M2_nointeraction_r <- readRDS("model-fits/raw/growth-models-2-nointeraction.rds")
+M2_full_r <- readRDS("model-fits/raw/growth-models-2-full.rds")
+
+M2_nogroup_Z <- readRDS("model-fits/z-overall/growth-models-2-nogroup.rds")
+M2_nointeraction_Z <- readRDS("model-fits/z-overall/growth-models-2-nointeraction.rds")
+M2_full_Z <- readRDS("model-fits/z-overall/growth-models-2-full.rds")
+
 M2_nogroup_z <- readRDS("model-fits/z-by-step/growth-models-2-nogroup.rds")
 M2_nointeraction_z <- readRDS("model-fits/z-by-step/growth-models-2-nointeraction.rds")
 M2_full_z <- readRDS("model-fits/z-by-step/growth-models-2-full.rds")
