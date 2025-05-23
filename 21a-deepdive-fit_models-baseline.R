@@ -40,6 +40,16 @@ saveRDS(ME, "model-fits/empty-model.rds")
 # Proportion Explained  0.38 0.34 0.28
 # Cumulative Proportion 0.38 0.72 1.00
 
+## just group ----
+f0_justgroup <- update(fE, ~ . + group)
+M0_justgroup <- netgrowr::mle_network_growth(
+    f0_justgroup,
+    data = modelvars_df,
+    split_by = "vocab_step",
+    label_with = "label"
+)
+saveRDS(M0_justgroup, "model-fits/baseline-model-justgroup.rds")
+
 ## no group ----
 f0_nogroup <- update(fE, ~ . + RC1 + RC2 + RC3)
 M0_nogroup <- netgrowr::mle_network_growth(
@@ -98,9 +108,9 @@ saveRDS(MRC_1_nogroup, "model-fits/RC-1-model-nogroup.rds")
 
 ## no interaction ----
 fRC_1_nointeraction <- list(
-    RC1 = update(fE, ~ . + RC1),
-    RC2 = update(fE, ~ . + RC2),
-    RC3 = update(fE, ~ . + RC3)
+    RC1 = update(fE, ~ . + group + RC1),
+    RC2 = update(fE, ~ . + group + RC2),
+    RC3 = update(fE, ~ . + group + RC3)
 )
 MRC_1_nointeraction <- map(fRC_1_nointeraction,  ~{
     netgrowr::mle_network_growth(
@@ -109,7 +119,7 @@ MRC_1_nointeraction <- map(fRC_1_nointeraction,  ~{
         split_by = "vocab_step",
         label_with = "label"
     )
-}, .progress = list(name = "MRC 1 (no group)"))
+}, .progress = list(name = "MRC 1 (no interaction)"))
 saveRDS(MRC_1_nointeraction, "model-fits/RC-1-model-nointeraction.rds")
 
 
@@ -137,7 +147,7 @@ MRC_1_full <- map(fRC_1_full,  ~{
         split_by = "vocab_step",
         label_with = "label"
     )
-}, .progress = list(name = "MRC 1 (no group)"))
+}, .progress = list(name = "MRC 1 (full)"))
 saveRDS(MRC_1_full, "model-fits/RC-1-model-full.rds")
 
 
@@ -162,9 +172,9 @@ saveRDS(MRC_2_nogroup, "model-fits/RC-2-model-nogroup.rds")
 
 ## no interaction ----
 fRC_2_nointeraction <- list(
-    RC1_RC2 = update(fE, ~ . group + RC1 + RC2),
-    RC1_RC3 = update(fE, ~ . group + RC1 + RC3),
-    RC2_RC3 = update(fE, ~ . group + RC2 + RC3)
+    RC1_RC2 = update(fE, ~ . + group + RC1 + RC2),
+    RC1_RC3 = update(fE, ~ . + group + RC1 + RC3),
+    RC2_RC3 = update(fE, ~ . + group + RC2 + RC3)
 )
 MRC_2_nointeraction <- map(fRC_2_nointeraction,  ~{
     netgrowr::mle_network_growth(
