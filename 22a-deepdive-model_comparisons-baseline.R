@@ -13,6 +13,9 @@ MRC_1_nogroup <- readRDS("model-fits/RC-1-model-nogroup.rds")
 MRC_1_nointeraction <- readRDS("model-fits/RC-1-model-nointeraction.rds")
 MRC_1_full <- readRDS("model-fits/RC-1-model-full.rds")
 
+MRC_2_nogroup <- readRDS("model-fits/RC-2-model-nogroup.rds")
+MRC_2_nointeraction <- readRDS("model-fits/RC-2-model-nointeraction.rds")
+MRC_2_full <- readRDS("model-fits/RC-2-model-full.rds")
 
 # Does adding group improve model fit? ----
 contrast_group <- bind_rows(
@@ -73,3 +76,7 @@ contrast_pndcgroup <- bind_rows(
     full = model_comparison(MRC_1_full$RC3, M0_justgroup),
     .id = "group_cfg"
 ) |> mutate(contrast = "pndc-empty") |> relocate(contrast)
+
+bind_rows(
+    con
+)

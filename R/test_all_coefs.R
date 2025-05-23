@@ -48,11 +48,10 @@ probability_node_added <- function (beta, formula, data, split_by, label_with = 
 }
 
 test_all_coefs <- function(m, split_by = "vocab_step") {
-    f <- formula(vsoa_bin ~ (RC1 + RC2 + RC3 + loa1_z + pac1_z) * group)
     d <- model.frame(m)
     p <- probability_node_added(
         beta = coef(m),
-        formula = f,
+        formula = m$formula,
         data = d,
         split_by = split_by
     )
@@ -61,7 +60,7 @@ test_all_coefs <- function(m, split_by = "vocab_step") {
     x_restricted <- map_dbl(params, ~{
         p <- probability_node_added(
             beta = coef(m),
-            formula = f,
+            formula = m$formula,
             data = d,
             split_by = split_by,
             hold_const = .x
@@ -84,4 +83,3 @@ test_all_coefs <- function(m, split_by = "vocab_step") {
     )
 }
 
-test_all_coefs(m)

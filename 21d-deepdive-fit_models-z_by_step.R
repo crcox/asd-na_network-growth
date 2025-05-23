@@ -145,8 +145,8 @@ f2_nogroup <- list(
         loa_pac = update(f0_nogroup, ~ . + loa2_z + pac2_z)
     ),
     both = list(
-        pat_loa = update(f0_nogroup, ~ . + pat1_z + pat2_z + loa1_z+ loa2_z),
-        pat_pac = update(f0_nogroup, ~ . + pat1_z + pat2_z + pac1_z+ pac2_z),
+        pat_loa = update(f0_nogroup, ~ . + pat1_z + pat2_z + loa1_z + loa2_z),
+        pat_pac = update(f0_nogroup, ~ . + pat1_z + pat2_z + pac1_z + pac2_z),
         loa_pac = update(f0_nogroup, ~ . + loa1_z + loa2_z + pac1_z + pac2_z)
     )
 )
