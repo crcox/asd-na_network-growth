@@ -11,6 +11,7 @@ modelvars_df <- readRDS("network/modelvars_vsoa_RC_z.rds")
 
 ## formula stem ----
 f0_nogroup <- formula(vsoa_bin ~ RC1 + RC2 + RC3)
+f0_full <- formula(vsoa_bin ~ (RC1 + RC2 + RC3) * group)
 
 
 # Models with one growth value type ----
@@ -72,6 +73,35 @@ M1_nointeraction <- map_depth(f1_nointeraction, 2, ~{
 saveRDS(M1_nointeraction, "model-fits/z-by-step/growth-models-1-nointeraction.rds")
 
 
+## Group interacts with baseline ----
+f1_baseinteraction <- list(
+    assoc = list(
+        pat = update(f0_full, ~ . + pat1_z),
+        loa = update(f0_full, ~ . + loa1_z),
+        pac = update(f0_full, ~ . + pac1_z)
+    ),
+    childes = list(
+        pat = update(f0_full, ~ . + pat2_z),
+        loa = update(f0_full, ~ . + loa2_z),
+        pac = update(f0_full, ~ . + pac2_z)
+    ),
+    both = list(
+        pat = update(f0_full, ~ . + pat1_z + pat2_z),
+        loa = update(f0_full, ~ . + loa1_z + loa2_z),
+        pac = update(f0_full, ~ . + pac1_z + pac2_z)
+    )
+)
+M1_baseinteraction <- map_depth(f1_baseinteraction, 2, ~{
+    netgrowr::mle_network_growth(
+        .x,
+        data = modelvars_df,
+        split_by = "vocab_step",
+        label_with = "label"
+    )
+}, .progress = list(name = "M1 (base inter.)"))
+saveRDS(M1_baseinteraction, "model-fits/z-by-step/growth-models-1-baseinteraction.rds")
+
+
 ## with interaction ----
 f1 <- list(
     assoc = list(
@@ -120,7 +150,7 @@ f2_nogroup <- list(
         loa_pac = update(f0_nogroup, ~ . + loa1_z + loa2_z + pac1_z + pac2_z)
     )
 )
-M2_nogroup <- map_depth(f2_nogroup, 3, ~{
+M2_nogroup <- map_depth(f2_nogroup, 2, ~{
     netgrowr::mle_network_growth(
         .x,
         data = modelvars_df,
@@ -144,12 +174,12 @@ f2_nointeraction <- list(
         loa_pac = update(f0_nogroup, ~ . + group + loa2_z + pac2_z)
     ),
     both = list(
-        pat_loa = update(f0_nogroup, ~ . + group + pat1_z + pat2_z + loa1_z+ loa2_z),
-        pat_pac = update(f0_nogroup, ~ . + group + pat1_z + pat2_z + pac1_z+ pac2_z),
+        pat_loa = update(f0_nogroup, ~ . + group + pat1_z + pat2_z + loa1_z + loa2_z),
+        pat_pac = update(f0_nogroup, ~ . + group + pat1_z + pat2_z + pac1_z + pac2_z),
         loa_pac = update(f0_nogroup, ~ . + group + loa1_z + loa2_z + pac1_z + pac2_z)
     )
 )
-M2_nointeraction <- map_depth(f2_nointeraction, 3, ~{
+M2_nointeraction <- map_depth(f2_nointeraction, 2, ~{
     netgrowr::mle_network_growth(
         .x,
         data = modelvars_df,
@@ -158,6 +188,35 @@ M2_nointeraction <- map_depth(f2_nointeraction, 3, ~{
     )
 }, .progress = list(name = "M2 (no interaction)"))
 saveRDS(M2_nointeraction, "model-fits/z-by-step/growth-models-2-nointeraction.rds")
+
+
+## Group interacts with baseline ----
+f2_baseinteraction <- list(
+    assoc = list(
+        pat_loa = update(f0_full, ~ . + pat1_z + loa1_z),
+        pat_pac = update(f0_full, ~ . + pat1_z + pac1_z),
+        loa_pac = update(f0_full, ~ . + loa1_z + pac1_z)
+    ),
+    childes = list(
+        pat_loa = update(f0_full, ~ . + pat2_z + loa2_z),
+        pat_pac = update(f0_full, ~ . + pat2_z + pac2_z),
+        loa_pac = update(f0_full, ~ . + loa2_z + pac2_z)
+    ),
+    both = list(
+        pat_loa = update(f0_full, ~ . + pat1_z + pat2_z + loa1_z + loa2_z),
+        pat_pac = update(f0_full, ~ . + pat1_z + pat2_z + pac1_z + pac2_z),
+        loa_pac = update(f0_full, ~ . + loa1_z + loa2_z + pac1_z + pac2_z)
+    )
+)
+M2_baseinteraction <- map_depth(f2_baseinteraction, 2, ~{
+    netgrowr::mle_network_growth(
+        .x,
+        data = modelvars_df,
+        split_by = "vocab_step",
+        label_with = "label"
+    )
+}, .progress = list(name = "M2 (base interaction)"))
+saveRDS(M2_baseinteraction, "model-fits/z-by-step/growth-models-2-baseinteraction.rds")
 
 
 ## with interaction ----
@@ -178,7 +237,7 @@ f2 <- list(
         loa_pac = update(f0_nogroup, ~ (. + loa1_z + loa2_z + pac1_z + pac2_z) * group)
     )
 )
-M2 <- map_depth(f2, 3, ~{
+M2 <- map_depth(f2, 2, ~{
     netgrowr::mle_network_growth(
         .x,
         data = modelvars_df,
@@ -234,6 +293,29 @@ M3_nointeraction <- map_depth(f3_nointeraction, 2, ~{
     )
 }, .progress = list(name = "M3 (no interaction)"))
 saveRDS(M3_nointeraction, "model-fits/z-by-step/growth-models-3-nointeraction.rds")
+
+
+## Group interacts with baseline ----
+f3_baseinteraction <- list(
+    assoc = list(
+        pat_loa_pac = update(f0_full, ~ . + pat1_z + loa1_z + pac1_z)
+    ),
+    childes = list(
+        pat_loa_pac = update(f0_full, ~ . + pat2_z + loa2_z + pac2_z)
+    ),
+    both = list(
+        pat_loa_pac = update(f0_full, ~ . + pat1_z + loa1_z + pac1_z + pat2_z + loa2_z + pac2_z)
+    )
+)
+M3_baseinteraction <- map_depth(f3_baseinteraction, 2, ~{
+    netgrowr::mle_network_growth(
+        .x,
+        data = modelvars_df,
+        split_by = "vocab_step",
+        label_with = "label"
+    )
+}, .progress = list(name = "M3 (no interaction)"))
+saveRDS(M3_baseinteraction, "model-fits/z-by-step/growth-models-3-baseinteraction.rds")
 
 
 ## with interaction ----
