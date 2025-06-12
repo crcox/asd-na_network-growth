@@ -6,5 +6,19 @@
 *.tar
 
 data/
-model-fits/
+model-fits*/
 network/
+results*/
+figures/
+log/
+.Rproj.user
+.Rhistory
+
+*.html
+*_cache/
+*_files/
+
+
+*.pdf
+*.eps
+*.png

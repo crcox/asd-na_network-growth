@@ -77,12 +77,16 @@ modelvars_df |>
 confounds <- modelvars_df |>
     select(num_item_id, word, nphon, CHILDES_Freq, BiphonProb.avg, PNDC.avg) |>
     distinct() |>
-    mutate(across(c(nphon, CHILDES_Freq), list(log = ~ log(.x + 1))))
+    mutate(across(c(nphon, CHILDES_Freq), list(log = ~ log(.x + 1)))) |>
+    mutate(across(c(nphon_log, CHILDES_Freq_log, BiphonProb.avg, PNDC.avg), list(z = ~ (.x - mean(.x)) / sd(.x) )))
 
 
 confounds |>
     select(nphon_log, CHILDES_Freq_log, BiphonProb.avg, PNDC.avg) |>
-    cor()
+    cor() |>
+    as.data.frame() |>
+    tibble::rownames_to_column(var = "x") |>
+    readr::write_excel_csv("confound-correlations.csv")
 
 ## pca ----
 # A principal components analysis which selects and rotates the first three
